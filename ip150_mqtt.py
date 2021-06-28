@@ -98,7 +98,8 @@ class IP150_MQTT():
         if area.isdigit():
             action = self._alarm_action_map.get(message.payload.decode(), None)
             if action:
-                self.ip.set_area_action(area, action)
+                if not self._cfg['READ_ONLY']:
+                    self.ip.set_area_action(area, action)
 
     def mqtt_ctrl_disconnect(self, client):
         """Disconnect from the MQTT broker and the IP150 and terminate."""
@@ -164,6 +165,10 @@ if __name__ == '__main__':
                            'credentials to disk when used outside of '
                            'Home Assistant')
 
+    argp.add_argument('--read-only', action='store_true',
+                      help='Disallow control through MQTT. '
+                           'Overrides READ_ONLY in config file.')
+
     argp.add_argument('config', type=argparse.FileType(),
                       default='options.json', nargs='?')
 
@@ -171,6 +176,12 @@ if __name__ == '__main__':
 
     with args.config:
         config = json.load(args.config)
+
+    if args.read_only:
+        config['READ_ONLY'] = True
+
+    if config['READ_ONLY']:
+        print('Starting in read-only mode')
 
     if args.getpass_ip150:
         config['PANEL_PASSWORD'] = getpass.getpass(prompt="PANEL_PASSWORD: ")

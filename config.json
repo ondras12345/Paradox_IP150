@@ -21,7 +21,9 @@
 	"ALARM_SUBSCRIBE_TOPIC" : "paradox/alarm/cmnd",
 	"ZONE_PUBLISH_TOPIC"	: "paradox/zone/state",
 	"CTRL_PUBLISH_TOPIC"    : "paradox/ctrl/state",
-	"CTRL_SUBSCRIBE_TOPIC"  : "paradox/ctrl/cmnd"
+	"CTRL_SUBSCRIBE_TOPIC"  : "paradox/ctrl/cmnd",
+
+	"READ_ONLY" : false
 	},
   "schema": {
 	"IP150_ADDRESS" : "url",
@@ -36,6 +38,8 @@
 	"ALARM_SUBSCRIBE_TOPIC" : "str",
 	"ZONE_PUBLISH_TOPIC"	: "str",
 	"CTRL_PUBLISH_TOPIC"    : "str",
-	"CTRL_SUBSCRIBE_TOPIC"  : "str"
+	"CTRL_SUBSCRIBE_TOPIC"  : "str",
+
+	"READ_ONLY" : "bool"
 	}
 }
