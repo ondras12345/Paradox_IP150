@@ -35,13 +35,20 @@ class KeepAlive(threading.Thread):
 class Paradox_IP150:
 
     _tables_map = {
-        # A map from human readable info about the alarm, to "table" (in fact, array) names used in IP150 software
-        #'triggered_alarms': 'tbl_alarmes', # Redundant list of zones with an alarm currently triggered. A zone in alarm will also be reported in the 'tbl_useraccess' table
-        #'troubles': 'tbl_troubles', # Could use this list to publish alarm troubles, not required for now
+        # A map from human readable info about the alarm, to "table" (in fact,
+        # array) names used in IP150 software
+
+        # Redundant list of zones with an alarm currently triggered. A zone in
+        # alarm will also be reported in the 'tbl_useraccess' table
+        # 'triggered_alarms': 'tbl_alarmes',
+
+        # Could use this list to publish alarm troubles, not required for now
+        # 'troubles': 'tbl_troubles',
+
         # The next list provides the status (0=Closed, 1=Open) for each zone
         'zones_status': {
             'name': 'tbl_statuszone',
-            'map' : {
+            'map': {
                 0: 'Closed',
                 1: 'Open',
                 2: 'In_alarm',
@@ -54,10 +61,11 @@ class Paradox_IP150:
                 9: 'Open_Trouble2'
             }
         },
-        # The next list provides the status (as an integer, 0 for area not enabled) for each supported area
+        # The next list provides the status (as an integer, 0 for area not
+        # enabled) for each supported area
         'areas_status': {
             'name': 'tbl_useraccess',
-            'map' : {
+            'map': {
                 0: 'Unset',
                 1: 'Disarmed',
                 2: 'Armed',
@@ -75,10 +83,10 @@ class Paradox_IP150:
 
     _areas_action_map = {
         # Mappring from human readable commands to machine readable
-        'Disarm'   : 'd',
-        'Arm'      : 'r',
-        'Arm_sleep': 'p',
-        'Arm_stay' : 's'
+        'Disarm':       'd',
+        'Arm':          'r',
+        'Arm_sleep':    'p',
+        'Arm_stay':     's'
     }
 
     def __init__(self, ip150url):
@@ -140,7 +148,9 @@ class Paradox_IP150:
         off = lpage.text.find('loginaff')
         if off == -1:
             raise Paradox_IP150_Error(
-                'Wrong page fetcehd. Did you connect to the right server and port? Server returned: {}'.format(lpage.text))
+                'Wrong page fetched. '
+                'Did you connect to the right server and port? '
+                'Server returned: {}'.format(lpage.text))
         sess = lpage.text[off + 10:off + 26]
 
         # Compute salted credentials and do the login
@@ -174,7 +184,7 @@ class Paradox_IP150:
         self.logged_in = False
 
     def _js2array(self, varname, script):
-        res = re.search('{} = new Array\((.*?)\);'.format(varname), script)
+        res = re.search(r'{} = new Array\((.*?)\);'.format(varname), script)
         res = '[{}]'.format(res.group(1))
         return json.loads(res)
 
@@ -188,10 +198,11 @@ class Paradox_IP150:
         script = status_parsed.find('script').string
         res = {}
         for table in self._tables_map.keys():
-            #Extract the js array for the current "table"
+            # Extract the js array for the current "table"
             tmp = self._js2array(self._tables_map[table]['name'], script)
-            #Map the extracted machine values to the corresponding human values
-            res[table] = [(i, self._tables_map[table]['map'][x]) for i,x in enumerate(tmp, start=1)]
+            # Map the extracted machine values to the corresponding human
+            # values
+            res[table] = [(i, self._tables_map[table]['map'][x]) for i, x in enumerate(tmp, start=1)]
         return res
 
     def _get_updates(self, on_update, on_error, userdata, interval):
@@ -203,7 +214,8 @@ class Paradox_IP150:
                 cur_state = self.get_info()
                 for d1 in cur_state.keys():
                     if d1 in prev_state:
-                        for cur_d2, prev_d2 in zip(cur_state[d1], prev_state[d1]):
+                        for cur_d2, prev_d2 in zip(cur_state[d1],
+                                                   prev_state[d1]):
                             if cur_d2 != prev_d2:
                                 if d1 in updated_state:
                                     updated_state[d1].append(cur_d2)
@@ -223,12 +235,18 @@ class Paradox_IP150:
             self._stop_updates.clear()
 
     @_logged_only
-    def get_updates(self, on_update=None, on_error=None, userdata=None, poll_interval=1.0):
+    def get_updates(self, on_update=None, on_error=None, userdata=None,
+                    poll_interval=1.0):
         if not on_update:
-            raise Paradox_IP150_Error('The callable on_update must be provided.')
+            raise Paradox_IP150_Error(
+                    'The callable on_update must be provided.')
         if poll_interval <= 0.0:
-            raise Paradox_IP150_Error('The polling interval must be greater than 0.0 seconds.')
-        self._updates = threading.Thread(target=self._get_updates, args=(on_update, on_error, userdata, poll_interval), daemon=True)
+            raise Paradox_IP150_Error(
+                    'The polling interval must be greater than 0.0 seconds.')
+        self._updates = threading.Thread(target=self._get_updates,
+                                         args=(on_update, on_error, userdata,
+                                               poll_interval),
+                                         daemon=True)
         self._updates.start()
 
     @_logged_only
@@ -237,18 +255,25 @@ class Paradox_IP150:
             self._stop_updates.set()
             self._updates = None
         else:
-            raise Paradox_IP150_Error('Not currently getting updates. Use get_updates() first.')
+            raise Paradox_IP150_Error(
+                'Not currently getting updates. Use get_updates() first.')
 
     @_logged_only
     def set_area_action(self, area, action):
-        if isinstance(area,str):
+        if isinstance(area, str):
             area = int(area)
-        area = area -1
+        area = area - 1
         if area < 0:
             raise Paradox_IP150_Error('Invalid area provided.')
         if action not in self._areas_action_map:
-            raise Paradox_IP150_Error('Invalid action "{}" provided. Valid actions are {}'.format(action, list(self._areas_action_map.keys())))
+            raise Paradox_IP150_Error(
+                'Invalid action "{}" provided. '
+                'Valid actions are {}'.format(
+                    action, list(self._areas_action_map.keys())))
         action = self._areas_action_map[action]
-        act_res = requests.get('{}/statuslive.html'.format(self.ip150url), params={'area': '{:02d}'.format(area), 'value': action}, verify=False)
+        act_res = requests.get('{}/statuslive.html'.format(self.ip150url),
+                               params={'area': '{:02d}'.format(area),
+                                       'value': action},
+                               verify=False)
         if act_res.status_code != 200:
             raise Paradox_IP150_Error('Error setting the area action')
