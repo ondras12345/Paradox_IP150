@@ -7,6 +7,7 @@ import paho.mqtt.client as mqtt
 import argparse
 import json
 import urllib.parse
+import getpass
 
 
 class IP150_MQTT_Error(Exception):
@@ -54,12 +55,11 @@ class IP150_MQTT():
         'ARM_HOME':     'Arm_stay'
         }
 
-    def __init__(self, opt_file):
+    def __init__(self, config):
         """Initialize the IP150 MQTT adapter."""
-        with opt_file:
-            self._cfg = json.load(opt_file)
-            self._will = (self._cfg['CTRL_PUBLISH_TOPIC'], 'Disconnected',
-                          1, True)
+        self._cfg = config
+        self._will = (self._cfg['CTRL_PUBLISH_TOPIC'], 'Disconnected',
+                      1, True)
 
     def _on_paradox_new_state(self, state, client):
         for d1 in state.keys():
@@ -156,9 +156,25 @@ class IP150_MQTT():
 
 if __name__ == '__main__':
     argp = argparse.ArgumentParser(description='MQTT adapter for IP150 Alarms')
+
+    argp.add_argument('--getpass-ip150', action='store_true',
+                      help='Interactively ask for PANEL_PASSWORD and '
+                           'PANEL_CODE. This overrides whatever is stored in '
+                           'the config file. Can be used to avoid storing '
+                           'credentials to disk when used outside of '
+                           'Home Assistant')
+
     argp.add_argument('config', type=argparse.FileType(),
                       default='options.json', nargs='?')
+
     args = argp.parse_args()
 
-    ip_mqtt = IP150_MQTT(args.config)
+    with args.config:
+        config = json.load(args.config)
+
+    if args.getpass_ip150:
+        config['PANEL_PASSWORD'] = getpass.getpass(prompt="PANEL_PASSWORD: ")
+        config['PANEL_CODE'] = getpass.getpass(prompt="PANEL_CODE: ")
+
+    ip_mqtt = IP150_MQTT(config)
     ip_mqtt.loop_forever()
