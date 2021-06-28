@@ -1,3 +1,4 @@
+"""MQTT adapter for IP150 Alarms."""
 import ip150
 import paho.mqtt.client as mqtt
 import argparse
@@ -6,10 +7,11 @@ import urllib.parse
 
 
 class IP150_MQTT_Error(Exception):
-    pass
+    """IP150_MQTT Error."""
 
 
 class IP150_MQTT():
+    """Representation of Paradox IP150 MQTT adapter."""
 
     _status_map = {
         'areas_status': {
@@ -50,12 +52,13 @@ class IP150_MQTT():
         }
 
     def __init__(self, opt_file):
+        """Initialize the IP150 MQTT adapter."""
         with opt_file:
             self._cfg = json.load(opt_file)
             self._will = (self._cfg['CTRL_PUBLISH_TOPIC'], 'Disconnected',
                           1, True)
 
-    def on_paradox_new_state(self, state, client):
+    def _on_paradox_new_state(self, state, client):
         for d1 in state.keys():
             d1_map = self._status_map.get(d1, None)
             if d1_map:
@@ -63,30 +66,30 @@ class IP150_MQTT():
                     publish_state = d1_map['map'].get(d2[1], None)
                     if publish_state:
                         client.publish(
-                                self._cfg[d1_map['topic']]+'/'+str(d2[0]),
+                                f'{self._cfg[d1_map["topic"]]}/{str(d2[0])}',
                                 publish_state, 1, True)
 
-    def on_paradox_update_error(self, e, client):
+    def _on_paradox_update_error(self, e, client):
         # We try to do a proper shutdow,
         # like if the user asked us to disconnect via MQTT
         # TODO: log the exception
         self.mqtt_ctrl_disconnect(client)
 
-    def on_mqtt_connect(self, client, userdata, flags, rc):
+    def _on_mqtt_connect(self, client, userdata, flags, rc):
         if rc != 0:
             raise IP150_MQTT_Error(
-                    'Error while connecting to the MQTT broker. '
-                    'Reason code: {}'.format(str(rc)))
+                    f'Error while connecting to the MQTT broker. '
+                    f'Reason code: {str(rc)}')
 
-        client.subscribe([(self._cfg['ALARM_SUBSCRIBE_TOPIC']+'/+', 1),
+        client.subscribe([(f'{self._cfg["ALARM_SUBSCRIBE_TOPIC"]}/+', 1),
                           (self._cfg['CTRL_SUBSCRIBE_TOPIC'], 1)])
 
         client.publish(self._cfg['CTRL_PUBLISH_TOPIC'], 'Connected', 1, True)
 
-        self.ip.get_updates(self.on_paradox_new_state,
-                            self.on_paradox_update_error, client)
+        self.ip.get_updates(self._on_paradox_new_state,
+                            self._on_paradox_update_error, client)
 
-    def on_mqtt_alarm_message(self, client, userdata, message):
+    def _on_mqtt_alarm_message(self, client, userdata, message):
         # Parse area number
         area = message.topic.rpartition('/')[2]
         if area.isdigit():
@@ -95,12 +98,13 @@ class IP150_MQTT():
                 self.ip.set_area_action(area, action)
 
     def mqtt_ctrl_disconnect(self, client):
+        """Disconnect from the MQTT broker and the IP150 and terminate."""
         self.ip.cancel_updates()
         client.publish(*self._will)
         client.disconnect()
         self.ip.logout()
 
-    def on_mqtt_ctrl_message(self, client, userdata, message):
+    def _on_mqtt_ctrl_message(self, client, userdata, message):
         switcher = {
             'Disconnect': self.mqtt_ctrl_disconnect
         }
@@ -109,7 +113,7 @@ class IP150_MQTT():
         if func:
             return func(client)
 
-    def parse_mqtt_url(self):
+    def _parse_mqtt_url(self):
         parsed = urllib.parse.urlsplit(self._cfg['MQTT_ADDRESS'])
         port = parsed.port
         if not port:
@@ -123,17 +127,21 @@ class IP150_MQTT():
         return (parsed.hostname, port)
 
     def loop_forever(self):
-        mqtt_hostname, mqtt_port = self.parse_mqtt_url()
+        """Start the adapter.
+
+        This is a blocking call.
+        """
+        mqtt_hostname, mqtt_port = self._parse_mqtt_url()
 
         self.ip = ip150.Paradox_IP150(self._cfg['IP150_ADDRESS'])
         self.ip.login(self._cfg['PANEL_CODE'], self._cfg['PANEL_PASSWORD'])
 
         mqc = mqtt.Client()
-        mqc.on_connect = self.on_mqtt_connect
-        mqc.message_callback_add(self._cfg['ALARM_SUBSCRIBE_TOPIC']+'/+',
-                                 self.on_mqtt_alarm_message)
+        mqc.on_connect = self._on_mqtt_connect
+        mqc.message_callback_add(f'{self._cfg["ALARM_SUBSCRIBE_TOPIC"]}/+',
+                                 self._on_mqtt_alarm_message)
         mqc.message_callback_add(self._cfg['CTRL_SUBSCRIBE_TOPIC'],
-                                 self.on_mqtt_ctrl_message)
+                                 self._on_mqtt_ctrl_message)
         mqc.username_pw_set(self._cfg['MQTT_USERNAME'],
                             self._cfg['MQTT_PASSWORD'])
         mqc.will_set(*self._will)
@@ -147,6 +155,7 @@ if __name__ == '__main__':
     argp = argparse.ArgumentParser(description='MQTT adapter for IP150 Alarms')
     argp.add_argument('config', type=argparse.FileType(),
                       default='options.json', nargs='?')
-    args = vars(argp.parse_args())
-    ip_mqtt = IP150_MQTT(args['config'])
+    args = argp.parse_args()
+
+    ip_mqtt = IP150_MQTT(args.config)
     ip_mqtt.loop_forever()

@@ -1,3 +1,4 @@
+"""Support for Paradox IP150 alarm IP module."""
 import hashlib
 import requests
 import time
@@ -9,30 +10,35 @@ import functools
 
 
 class Paradox_IP150_Error(Exception):
-    pass
+    """Paradox IP150 error."""
 
 
 class KeepAlive(threading.Thread):
+    """Thread that periodically sends keepalives to the Paradox IP150."""
 
     def __init__(self, ip150url, interval):
+        """Initialize the KeepAlive thread."""
         threading.Thread.__init__(self, daemon=True)
         self.ip150url = ip150url
         self.interval = interval
         self.stopped = threading.Event()
 
     def _one_keepalive(self):
-        requests.get('{}/keep_alive.html'.format(
-            self.ip150url), params={'msgid': 1}, verify=False)
+        requests.get(f'{self.ip150url}/keep_alive.html', params={'msgid': 1},
+                     verify=False)
 
     def run(self):
+        """Periodically send keepalives until stopped."""
         while not self.stopped.wait(self.interval):
             self._one_keepalive()
 
     def cancel(self):
+        """Stop sending keepalives."""
         self.stopped.set()
 
 
 class Paradox_IP150:
+    """Representation of Paradox IP150 module."""
 
     _tables_map = {
         # A map from human readable info about the alarm, to "table" (in fact,
@@ -90,6 +96,7 @@ class Paradox_IP150:
     }
 
     def __init__(self, ip150url):
+        """Initialize the IP150 module."""
         self.ip150url = ip150url
         self.logged_in = False
         self._keepalive = None
@@ -110,7 +117,10 @@ class Paradox_IP150:
         return "".join(map(lambda x: chr(ord(x) % 256), s))
 
     def _paradox_rc4(self, data, key):
-        S, j, out = list(range(256)), 0, []
+        """Return the result of Paradox's non-standard RC4."""
+        S = list(range(256))
+        j = 0
+        out = []
 
         # This is not standard RC4
         for i in range(len(key) - 1, -1, -1):
@@ -126,9 +136,13 @@ class Paradox_IP150:
             out.append(ord(ch) ^ S[(S[i] + S[j]) % 256])
             i += 1
 
-        return "".join(map(lambda x: '{0:02x}'.format(x), out)).upper()
+        return "".join(map(lambda x: '{0:02X}'.format(x), out))
 
     def _prep_cred(self, user, pwd, sess):
+        """Compute salted credentials in preparation for login.
+
+        Returns params for requests.get().
+        """
         pwd_8bits = self._to_8bits(pwd)
         pwd_md5 = hashlib.md5(pwd_8bits.encode('ascii')).hexdigest().upper()
         spass = pwd_md5 + sess
@@ -136,31 +150,32 @@ class Paradox_IP150:
                 'u': self._paradox_rc4(user, spass)}
 
     def login(self, user, pwd, keep_alive_interval=5.0):
+        """Log in to the IP150 module and start sending keepalives."""
         if self.logged_in:
             raise Paradox_IP150_Error(
                 'Already logged in; please use logout() first.')
 
         # Ask for a login page, to get the 'sess' salt
-        lpage = requests.get(
-            '{}/login_page.html'.format(self.ip150url), verify=False)
+        lpage = requests.get(f'{self.ip150url}/login_page.html', verify=False)
 
         # Extract the 'sess' salt
         off = lpage.text.find('loginaff')
         if off == -1:
             raise Paradox_IP150_Error(
-                'Wrong page fetched. '
-                'Did you connect to the right server and port? '
-                'Server returned: {}'.format(lpage.text))
+                f'Wrong page fetched. '
+                f'Did you connect to the right server and port? '
+                f'Server returned: {lpage.text}')
         sess = lpage.text[off + 10:off + 26]
 
         # Compute salted credentials and do the login
         creds = self._prep_cred(user, pwd, sess)
-        defpage = requests.get('{}/default.html'.format(
-            self.ip150url), params=creds, verify=False)
+        defpage = requests.get(f'{self.ip150url}/default.html', params=creds,
+                               verify=False)
         if defpage.text.count("top.location.href='login_page.html';") > 0:
             # They're redirecting us to the login page; credentials didn't work
             raise Paradox_IP150_Error(
                 'Could not login, wrong credentials provided.')
+
         # Give enough time to the server to set up.
         time.sleep(3)
         if keep_alive_interval:
@@ -170,6 +185,11 @@ class Paradox_IP150:
 
     @_logged_only
     def logout(self):
+        """Log out of the IP150 module.
+
+        Stops sending keepalives and stops the _updates thread if it is
+        running.
+        """
         if self._keepalive:
             self._keepalive.cancel()
             self._keepalive.join()
@@ -177,21 +197,21 @@ class Paradox_IP150:
         if self._updates:
             self._stop_updates.set()
             self._updates = None
-        logout = requests.get(
-            '{}/logout.html'.format(self.ip150url), verify=False)
+        logout = requests.get(f'{self.ip150url}/logout.html', verify=False)
         if logout.status_code != 200:
             raise Paradox_IP150_Error('Error logging out')
         self.logged_in = False
 
     def _js2array(self, varname, script):
         res = re.search(r'{} = new Array\((.*?)\);'.format(varname), script)
-        res = '[{}]'.format(res.group(1))
+        res = f'[{res.group(1)}]'
         return json.loads(res)
 
     @_logged_only
     def get_info(self):
-        status_page = requests.get(
-            '{}/statuslive.html'.format(self.ip150url), verify=False)
+        """Get and parse status info from statuslive.html."""
+        status_page = requests.get(f'{self.ip150url}/statuslive.html',
+                                   verify=False)
         status_parsed = BeautifulSoup(status_page.text, 'html.parser')
         if status_parsed.find('form', attrs={'name': 'statuslive'}) is None:
             raise Paradox_IP150_Error('Could not retrieve status information')
@@ -206,6 +226,10 @@ class Paradox_IP150:
         return res
 
     def _get_updates(self, on_update, on_error, userdata, interval):
+        """Periodically fetch updates from the IP150.
+
+        This is the body of the _updates thread.
+        """
         try:
             prev_state = {}
 
@@ -237,6 +261,7 @@ class Paradox_IP150:
     @_logged_only
     def get_updates(self, on_update=None, on_error=None, userdata=None,
                     poll_interval=1.0):
+        """Start the _updates thread."""
         if not on_update:
             raise Paradox_IP150_Error(
                     'The callable on_update must be provided.')
@@ -251,6 +276,7 @@ class Paradox_IP150:
 
     @_logged_only
     def cancel_updates(self):
+        """Stop the _updates thread."""
         if self._updates:
             self._stop_updates.set()
             self._updates = None
@@ -260,6 +286,7 @@ class Paradox_IP150:
 
     @_logged_only
     def set_area_action(self, area, action):
+        """Perform action (arm, disarm, ...) on specified area."""
         if isinstance(area, str):
             area = int(area)
         area = area - 1
@@ -267,11 +294,10 @@ class Paradox_IP150:
             raise Paradox_IP150_Error('Invalid area provided.')
         if action not in self._areas_action_map:
             raise Paradox_IP150_Error(
-                'Invalid action "{}" provided. '
-                'Valid actions are {}'.format(
-                    action, list(self._areas_action_map.keys())))
+                f'Invalid action "{action}" provided. '
+                f'Valid actions are {list(self._areas_action_map.keys())}')
         action = self._areas_action_map[action]
-        act_res = requests.get('{}/statuslive.html'.format(self.ip150url),
+        act_res = requests.get(f'{self.ip150url}/statuslive.html',
                                params={'area': '{:02d}'.format(area),
                                        'value': action},
                                verify=False)
