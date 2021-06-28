@@ -1,4 +1,7 @@
+#!/usr/bin/env python3
+
 """MQTT adapter for IP150 Alarms."""
+
 import ip150
 import paho.mqtt.client as mqtt
 import argparse
