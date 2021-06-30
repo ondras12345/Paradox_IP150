@@ -7,6 +7,10 @@ from bs4 import BeautifulSoup
 import re
 import json
 import functools
+import logging
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Paradox_IP150_Error(Exception):
@@ -136,6 +140,7 @@ class Paradox_IP150:
             out.append(ord(ch) ^ S[(S[i] + S[j]) % 256])
             i += 1
 
+        _LOGGER.debug(f'_paradox_rc4({repr(data)}, {repr(key)}): {repr(out)}')
         return "".join(map(lambda x: '{0:02X}'.format(x), out))
 
     def _prep_cred(self, user, pwd, sess):
@@ -166,6 +171,7 @@ class Paradox_IP150:
                 f'Did you connect to the right server and port? '
                 f'Server returned: {lpage.text}')
         sess = lpage.text[off + 10:off + 26]
+        _LOGGER.debug(f'sess salt is {repr(sess)}')
 
         # Compute salted credentials and do the login
         creds = self._prep_cred(user, pwd, sess)
@@ -182,6 +188,7 @@ class Paradox_IP150:
             self._keepalive = KeepAlive(self.ip150url, keep_alive_interval)
             self._keepalive.start()
         self.logged_in = True
+        _LOGGER.info('login successful')
 
     @_logged_only
     def logout(self):
@@ -201,10 +208,13 @@ class Paradox_IP150:
         if logout.status_code != 200:
             raise Paradox_IP150_Error('Error logging out')
         self.logged_in = False
+        _LOGGER.info('logout successful')
 
     def _js2array(self, varname, script):
+        _LOGGER.debug(f'_js2array({repr(varname)}, {repr(script)})')
         res = re.search(r'{} = new Array\((.*?)\);'.format(varname), script)
         res = f'[{res.group(1)}]'
+        _LOGGER.debug(f'Resulting JSON: {repr(res)}')
         return json.loads(res)
 
     @_logged_only
@@ -216,6 +226,7 @@ class Paradox_IP150:
         if status_parsed.find('form', attrs={'name': 'statuslive'}) is None:
             raise Paradox_IP150_Error('Could not retrieve status information')
         script = status_parsed.find('script').string
+        _LOGGER.debug(f'statuslive script: {repr(script)}')
         res = {}
         for table in self._tables_map.keys():
             # Extract the js array for the current "table"
@@ -273,6 +284,7 @@ class Paradox_IP150:
                                                poll_interval),
                                          daemon=True)
         self._updates.start()
+        _LOGGER.info(f'_updates thread started ({poll_interval} s)')
 
     @_logged_only
     def cancel_updates(self):
@@ -280,6 +292,7 @@ class Paradox_IP150:
         if self._updates:
             self._stop_updates.set()
             self._updates = None
+            _LOGGER.info('_updates thread stopped')
         else:
             raise Paradox_IP150_Error(
                 'Not currently getting updates. Use get_updates() first.')
@@ -289,7 +302,7 @@ class Paradox_IP150:
         """Perform action (arm, disarm, ...) on specified area."""
         if isinstance(area, str):
             area = int(area)
-        area = area - 1
+        area -= 1
         if area < 0:
             raise Paradox_IP150_Error('Invalid area provided.')
         if action not in self._areas_action_map:
@@ -297,8 +310,10 @@ class Paradox_IP150:
                 f'Invalid action "{action}" provided. '
                 f'Valid actions are {list(self._areas_action_map.keys())}')
         action = self._areas_action_map[action]
+        # This will seem off-by-one compared to the passed argument (area -= 1)
+        _LOGGER.info(f'Performing action "{action}" on area {area:02d}')
         act_res = requests.get(f'{self.ip150url}/statuslive.html',
-                               params={'area': '{:02d}'.format(area),
+                               params={'area': f'{area:02d}',
                                        'value': action},
                                verify=False)
         if act_res.status_code != 200:

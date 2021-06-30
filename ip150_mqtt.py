@@ -8,6 +8,10 @@ import argparse
 import json
 import urllib.parse
 import getpass
+import logging
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class IP150_MQTT_Error(Exception):
@@ -73,9 +77,9 @@ class IP150_MQTT():
                                 publish_state, 1, True)
 
     def _on_paradox_update_error(self, e, client):
-        # We try to do a proper shutdow,
+        # We try to do a proper shutdown,
         # like if the user asked us to disconnect via MQTT
-        # TODO: log the exception
+        _LOGGER.error(f'update error {str(e)}, terminating')
         self.mqtt_ctrl_disconnect(client)
 
     def _on_mqtt_connect(self, client, userdata, flags, rc):
@@ -89,6 +93,8 @@ class IP150_MQTT():
 
         client.publish(self._cfg['CTRL_PUBLISH_TOPIC'], 'Connected', 1, True)
 
+        _LOGGER.info('MQTT connected')
+
         self.ip.get_updates(self._on_paradox_new_state,
                             self._on_paradox_update_error, client)
 
@@ -98,11 +104,14 @@ class IP150_MQTT():
         if area.isdigit():
             action = self._alarm_action_map.get(message.payload.decode(), None)
             if action:
-                if not self._cfg['READ_ONLY']:
+                if self._cfg['READ_ONLY']:
+                    _LOGGER.info(f'Action "{action}" ignored (READ_ONLY)')
+                else:
                     self.ip.set_area_action(area, action)
 
     def mqtt_ctrl_disconnect(self, client):
         """Disconnect from the MQTT broker and the IP150 and terminate."""
+        _LOGGER.info('mqtt_ctrl_disconnect called')
         self.ip.cancel_updates()
         client.publish(*self._will)
         client.disconnect()
@@ -128,6 +137,7 @@ class IP150_MQTT():
             else:
                 raise IP150_MQTT_Error(
                         'No port defined, nor "mqtt" nor "mqtts" scheme.')
+            _LOGGER.info(f'Defaulting to MQTT port {port} ({parsed.scheme})')
         return (parsed.hostname, port)
 
     def loop_forever(self):
@@ -169,23 +179,34 @@ if __name__ == '__main__':
                       help='Disallow control through MQTT. '
                            'Overrides READ_ONLY in config file.')
 
+    argp.add_argument('--debug', action='store_true',
+                      help='Log DEBUG level messages')
+
     argp.add_argument('config', type=argparse.FileType(),
                       default='options.json', nargs='?')
 
     args = argp.parse_args()
 
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+        _LOGGER.info('Logging DEBUG level messages')
+    else:
+        logging.basicConfig(level=logging.INFO)
+
     with args.config:
+        _LOGGER.debug(f'Loading config from {args.config.name}')
         config = json.load(args.config)
 
     if args.read_only:
         config['READ_ONLY'] = True
 
     if config['READ_ONLY']:
-        print('Starting in read-only mode')
+        _LOGGER.info('Starting in read-only mode')
 
     if args.getpass_ip150:
         config['PANEL_PASSWORD'] = getpass.getpass(prompt="PANEL_PASSWORD: ")
         config['PANEL_CODE'] = getpass.getpass(prompt="PANEL_CODE: ")
 
+    _LOGGER.debug(f'Starting with config {repr(config)}')
     ip_mqtt = IP150_MQTT(config)
     ip_mqtt.loop_forever()

@@ -21,8 +21,6 @@ Once you have enabled the repository, the Paradox IP150 MQTT Adapter add-on shou
 
 After installing the add-on, make sure to configure it. As a minimum, configure the IP address of your MQTT broker and ip150 module, set panel code and password, and you should be good to go.
 
-There is currently no logging displayed from the hass.io add-on when the add-on is working correctly. Errors for the hass.io add-on are only displayed when the add-on is configured incorrectly.
-
 ### Basic configuration should allow you to get going:
 
 Make sure you have an MQTT broker running, for instance by using Hass.io integrations.
