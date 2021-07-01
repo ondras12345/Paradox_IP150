@@ -117,10 +117,12 @@ class Paradox_IP150:
                 return f(self, *args, **kwargs)
         return wrapped
 
-    def _to_8bits(self, s):
+    @staticmethod
+    def _to_8bits(s):
         return "".join(map(lambda x: chr(ord(x) % 256), s))
 
-    def _paradox_rc4(self, data, key):
+    @staticmethod
+    def _paradox_rc4(data, key):
         """Return the result of Paradox's non-standard RC4."""
         S = list(range(256))
         j = 0
@@ -143,16 +145,17 @@ class Paradox_IP150:
         _LOGGER.debug(f'_paradox_rc4({repr(data)}, {repr(key)}): {repr(out)}')
         return "".join(map(lambda x: '{0:02X}'.format(x), out))
 
-    def _prep_cred(self, user, pwd, sess):
+    @staticmethod
+    def _prep_cred(user, pwd, sess):
         """Compute salted credentials in preparation for login.
 
         Returns params for requests.get().
         """
-        pwd_8bits = self._to_8bits(pwd)
+        pwd_8bits = Paradox_IP150._to_8bits(pwd)
         pwd_md5 = hashlib.md5(pwd_8bits.encode('ascii')).hexdigest().upper()
         spass = pwd_md5 + sess
         return {'p': hashlib.md5(spass.encode('ascii')).hexdigest().upper(),
-                'u': self._paradox_rc4(user, spass)}
+                'u': Paradox_IP150._paradox_rc4(user, spass)}
 
     def login(self, user, pwd, keep_alive_interval=5.0):
         """Log in to the IP150 module and start sending keepalives."""
@@ -210,7 +213,8 @@ class Paradox_IP150:
         self.logged_in = False
         _LOGGER.info('logout successful')
 
-    def _js2array(self, varname, script):
+    @staticmethod
+    def _js2array(varname, script):
         _LOGGER.debug(f'_js2array({repr(varname)}, {repr(script)})')
         res = re.search(r'{} = new Array\((.*?)\);'.format(varname), script)
         res = f'[{res.group(1)}]'
