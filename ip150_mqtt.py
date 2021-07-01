@@ -162,7 +162,11 @@ class IP150_MQTT():
 
         mqc.connect(mqtt_hostname, mqtt_port)
 
-        mqc.loop_forever()
+        try:
+            mqc.loop_forever()
+        except KeyboardInterrupt:
+            _LOGGER.info('Received KeyboardInterrupt, terminating')
+            self.mqtt_ctrl_disconnect(mqc)
 
 
 if __name__ == '__main__':
