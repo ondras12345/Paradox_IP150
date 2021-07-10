@@ -13,7 +13,7 @@ class TestActions(unittest.TestCase):
     def test_area_action_invalid_area(self):
         """Test if providing invalid area number raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.set_area_action(0, 'Arm')
         self.assertEqual(str(cm.exception), 'Invalid area provided.')
@@ -21,7 +21,7 @@ class TestActions(unittest.TestCase):
     def test_area_action_invalid_action(self):
         """Test if providing invalid action raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.set_area_action(1, 'test')
         self.assertEqual(
@@ -34,7 +34,7 @@ class TestActions(unittest.TestCase):
     def test_area_action_fail(self, mock_requests):
         """Test if error is raised when IP150 does not return 200 OK."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         page = Mock()
         page.status_code = 404  # Page Not Found
         mock_requests.get.return_value = page
@@ -52,7 +52,7 @@ class TestActions(unittest.TestCase):
     def test_area_action_successful(self, mock_requests):
         """Test a successful call of set_area_action."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         page = Mock()
         page.status_code = 200  # OK
         mock_requests.get.return_value = page

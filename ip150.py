@@ -102,15 +102,24 @@ class Paradox_IP150:
     def __init__(self, ip150url):
         """Initialize the IP150 module."""
         self.ip150url = ip150url
-        self.logged_in = False
+        self._logged_in = False
         self._keepalive = None
         self._updates = None
         self._stop_updates = threading.Event()
 
+    @property
+    def logged_in(self):
+        """See if we are logged in to the IP150 module.
+
+        This does not actually check anything with the IP150 module,
+        it just returns the value of an internal variable.
+        """
+        return self._logged_in
+
     def _logged_only(f):
         @functools.wraps(f)
         def wrapped(self, *args, **kwargs):
-            if not self.logged_in:
+            if not self._logged_in:
                 raise Paradox_IP150_Error(
                     'Not logged in; please use login() first.')
             else:
@@ -190,7 +199,7 @@ class Paradox_IP150:
         if keep_alive_interval:
             self._keepalive = KeepAlive(self.ip150url, keep_alive_interval)
             self._keepalive.start()
-        self.logged_in = True
+        self._logged_in = True
         _LOGGER.info('login successful')
 
     @_logged_only
@@ -210,7 +219,7 @@ class Paradox_IP150:
         logout = requests.get(f'{self.ip150url}/logout.html', verify=False)
         if logout.status_code != 200:
             raise Paradox_IP150_Error('Error logging out')
-        self.logged_in = False
+        self._logged_in = False
         _LOGGER.info('logout successful')
 
     @staticmethod

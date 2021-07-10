@@ -93,7 +93,7 @@ if (top.subrequest==1){
 """
         mock_requests.get.return_value = page
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         res = ip_module.get_info()
         mock_requests.get.assert_called_once()
         expected_res = {

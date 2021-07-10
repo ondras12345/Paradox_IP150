@@ -21,7 +21,7 @@ class TestLogin(unittest.TestCase):
     def test_already_loggen_in(self):
         """Test if calling login twice raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.login('usr', 'pwd')
         self.assertEqual(str(cm.exception),
@@ -89,7 +89,7 @@ class TestLogin(unittest.TestCase):
     def test_logout_error(self, mock_requests):
         """Test if logout page that does not return 200 OK raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         _keepalive = Mock()
         ip_module._keepalive = _keepalive
         logout_page = Mock()
@@ -113,7 +113,7 @@ class TestLogin(unittest.TestCase):
     def test_logout_successful(self, mock_requests):
         """Test a successful logout."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         _keepalive = Mock()
         ip_module._keepalive = _keepalive
         logout_page = Mock()

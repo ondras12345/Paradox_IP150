@@ -13,7 +13,7 @@ class TestUpdates(unittest.TestCase):
     def test_updates_no_on_update(self):
         """Test if get_updates with on_udpate=None raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.get_updates()
         self.assertEqual(str(cm.exception),
@@ -23,7 +23,7 @@ class TestUpdates(unittest.TestCase):
     def test_updates_invalid_interval(self):
         """Test if passing invalid poll_interval raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.get_updates(on_update=Mock(), poll_interval=0)
         self.assertEqual(
@@ -32,7 +32,7 @@ class TestUpdates(unittest.TestCase):
         self.assertIsNone(ip_module._updates)
 
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.get_updates(on_update=Mock(), poll_interval=-1)
         self.assertEqual(
@@ -47,7 +47,7 @@ class TestUpdates(unittest.TestCase):
         on_error = Mock()
         userdata = Mock()
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         ip_module.get_updates(on_update=on_update, on_error=on_error,
                               userdata=userdata, poll_interval=2.0)
         mock_thread.assert_called_with(target=ip_module._get_updates,
@@ -60,7 +60,7 @@ class TestUpdates(unittest.TestCase):
     def test_updates_cancel_not_running(self):
         """Test if cancelling _updates before starting it raises an error."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         with self.assertRaises(Paradox_IP150_Error) as cm:
             ip_module.cancel_updates()
         self.assertEqual(
@@ -71,7 +71,7 @@ class TestUpdates(unittest.TestCase):
     def test_updates_cancel(self, mock_event):
         """Test cancelling the _updates thread."""
         ip_module = Paradox_IP150('http://127.0.0.1')
-        ip_module.logged_in = True
+        ip_module._logged_in = True
         _updates = Mock()
         ip_module._updates = _updates
         ip_module.cancel_updates()
