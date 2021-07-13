@@ -95,8 +95,14 @@ class IP150_MQTT():
 
         _LOGGER.info('MQTT connected')
 
-        self.ip.get_updates(self._on_paradox_new_state,
-                            self._on_paradox_update_error, client)
+        try:
+            self.ip.get_updates(self._on_paradox_new_state,
+                                self._on_paradox_update_error, client)
+        except ip150.Paradox_IP150_Error as e:
+            if str(e) == 'Already getting updates.':
+                _LOGGER.info('Already getting updates.')
+            else:
+                raise e
 
     def _on_mqtt_alarm_message(self, client, userdata, message):
         # Parse area number

@@ -279,6 +279,8 @@ class Paradox_IP150:
         if poll_interval <= 0.0:
             raise Paradox_IP150_Error(
                     'The polling interval must be greater than 0.0 seconds.')
+        if self._updates:
+            raise Paradox_IP150_Error('Already getting updates.')
         self._updates = threading.Thread(target=self._get_updates,
                                          args=(on_update, on_error, userdata,
                                                poll_interval),
