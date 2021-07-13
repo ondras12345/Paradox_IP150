@@ -50,6 +50,31 @@ class TestUpdates(unittest.TestCase):
         ip_module._logged_in = True
         ip_module.get_updates(on_update=on_update, on_error=on_error,
                               userdata=userdata, poll_interval=2.0)
+        mock_thread.assert_called_once()
+        mock_thread.assert_called_with(target=ip_module._get_updates,
+                                       args=(on_update, on_error, userdata,
+                                             2.0),
+                                       daemon=True)
+        ip_module._updates.start.assert_called_once()
+        self.assertIsNotNone(ip_module._updates)
+
+    @patch('ip150.threading.Thread')
+    def test_updates_double_start(self, mock_thread):
+        """Test if starting the _updates thread while it is running fails."""
+        on_update = Mock()
+        on_error = Mock()
+        userdata = Mock()
+        ip_module = Paradox_IP150('http://127.0.0.1')
+        ip_module._logged_in = True
+        ip_module.get_updates(on_update=on_update, on_error=on_error,
+                              userdata=userdata, poll_interval=2.0)
+        # The second call to get_updates should fail, because one _updates
+        # thread is already running.
+        with self.assertRaises(Paradox_IP150_Error) as cm:
+            ip_module.get_updates(on_update=on_update, on_error=on_error,
+                                  userdata=userdata, poll_interval=2.0)
+        self.assertEqual(str(cm.exception), 'Already getting updates.')
+        mock_thread.assert_called_once()  # only one thread should be created
         mock_thread.assert_called_with(target=ip_module._get_updates,
                                        args=(on_update, on_error, userdata,
                                              2.0),
