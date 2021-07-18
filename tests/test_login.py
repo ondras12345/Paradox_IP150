@@ -119,12 +119,17 @@ class TestLogin(unittest.TestCase):
         logout_page = Mock()
         logout_page.status_code = 200  # OK
         mock_requests.get.return_value = logout_page
+        # _updates must not be None if we want to test that logout() stops it.
+        ip_module._updates = Mock()
+        ip_module._stop_updates = Mock()
         ip_module.logout()
         mock_requests.get.assert_called_with('http://127.0.0.1/logout.html',
                                              verify=False)
         _keepalive.cancel.assert_called_once()
         _keepalive.join.assert_called_once()
         self.assertIsNone(ip_module._keepalive)
+        self.assertIsNone(ip_module._updates)
+        ip_module._stop_updates.set.assert_called_once()
         self.assertFalse(ip_module.logged_in)
 
 
