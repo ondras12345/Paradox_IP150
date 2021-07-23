@@ -129,11 +129,11 @@ class TestUpdates(unittest.TestCase):
             }
         updated_state = {
                 'zones_status': [(1, 'Closed'), (2, 'Closed'), (3, 'Closed')],
-                'areas_status': [(1, 'Pending'), (2, 'Ready')],
+                'areas_status': [(1, 'Entry_delay'), (2, 'Ready')],
             }
         state_update = {
                 'zones_status': [(3, 'Closed')],
-                'areas_status': [(1, 'Pending')]
+                'areas_status': [(1, 'Entry_delay')]
             }
         mock_info.side_effect = [initial_state, initial_state,
                                  updated_state, updated_state]
