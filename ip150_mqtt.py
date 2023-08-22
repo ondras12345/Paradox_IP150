@@ -9,6 +9,7 @@ import json
 import urllib.parse
 import getpass
 import logging
+import sys
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -154,7 +155,14 @@ class IP150_MQTT():
         mqtt_hostname, mqtt_port = self._parse_mqtt_url()
 
         self.ip = ip150.Paradox_IP150(self._cfg['IP150_ADDRESS'])
-        self.ip.login(self._cfg['PANEL_CODE'], self._cfg['PANEL_PASSWORD'])
+        try:
+            self.ip.login(self._cfg['PANEL_CODE'], self._cfg['PANEL_PASSWORD'])
+        except ip150.Paradox_IP150_Error as e:
+            if str(e) == "Could not login, wrong credentials provided.":
+                # Exit with a distinct exit code to prevent retrying.
+                print(str(e), file=sys.stderr)
+                sys.exit(254)
+            raise e
 
         mqc = mqtt.Client()
         mqc.on_connect = self._on_mqtt_connect
