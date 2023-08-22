@@ -209,11 +209,11 @@ class Paradox_IP150:
         Stops sending keepalives and stops the _updates thread if it is
         running.
         """
-        if self._keepalive:
+        if self._keepalive is not None:
             self._keepalive.cancel()
             self._keepalive.join()
             self._keepalive = None
-        if self._updates:
+        if self._updates is not None:
             self._stop_updates.set()
             self._updates = None
         logout = requests.get(f'{self.ip150url}/logout.html', verify=False)
@@ -292,6 +292,9 @@ class Paradox_IP150:
 
                 prev_state = cur_state
         except Exception as e:
+            # The thread will terminate, but cancel_updates will have to be
+            # called to clean up the mess before get_updates can be called
+            # again.
             if on_error:
                 on_error(e, userdata)
         finally:
@@ -307,7 +310,7 @@ class Paradox_IP150:
         if poll_interval <= 0.0:
             raise Paradox_IP150_Error(
                     'The polling interval must be greater than 0.0 seconds.')
-        if self._updates:
+        if self._updates is not None:
             raise Paradox_IP150_Error('Already getting updates.')
         self._updates = threading.Thread(target=self._get_updates,
                                          args=(on_update, on_error, userdata,
@@ -319,7 +322,7 @@ class Paradox_IP150:
     @_logged_only
     def cancel_updates(self):
         """Stop the _updates thread."""
-        if self._updates:
+        if self._updates is not None:
             self._stop_updates.set()
             self._updates = None
             _LOGGER.info('_updates thread stopped')

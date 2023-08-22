@@ -152,6 +152,34 @@ class TestUpdates(unittest.TestCase):
         # thread to stop and clear the stop signal.
         ip_module._stop_updates.clear.assert_called_once()
 
+    @patch('ip150.threading.Event')  # __init__ creates _stop_updates
+    @patch('ip150.Paradox_IP150.get_info')
+    def test_updates_on_error(self, mock_info, mock_event):
+        """Test on_error callback from _updates thread."""
+        ip_module = Paradox_IP150('http://127.0.0.1')
+        # _get_updates will loop until _stop_updates.wait() returns True
+        ip_module._stop_updates.wait.side_effect = [False, False, True]
+        exception = Exception('just testing')
+        mock_info.side_effect = Mock(side_effect=exception)
+        on_update = Mock()
+        on_error = Mock()
+        userdata = Mock()
+        ip_module._updates = Mock()  # needed for the cancel_updates test
+        ip_module._get_updates(on_update, on_error, userdata, 1.0)
+        # The thread should terminate after encountering an exception.
+        self.assertEqual(mock_info.call_count, 1)
+        on_error.assert_called_once()
+        on_error.assert_called_with(exception, userdata)
+        # The last True returned by _stop_updates.wait() should cause the
+        # thread to stop and clear the stop signal.
+        ip_module._stop_updates.clear.assert_called_once()
+        # The thread will be stopped, but we'll be unable to restart it until
+        # we call cancel_updates.
+        ip_module._logged_in = True
+        ip_module._stop_updates.is_set.return_value = False  # clear() called
+        ip_module.cancel_updates()
+        self.assertIsNone(ip_module._updates)
+
 
 if __name__ == '__main__':
     # This is not useful because the ip150 module will not be found if
