@@ -80,7 +80,7 @@ class IP150_MQTT():
     def _on_paradox_update_error(self, e, client):
         # We try to do a proper shutdown,
         # like if the user asked us to disconnect via MQTT
-        _LOGGER.error(f'update error {str(e)}, terminating')
+        _LOGGER.error(f'update error {str(e)}, terminating', exc_info=e)
         self.mqtt_ctrl_disconnect(client)
 
     def _on_mqtt_connect(self, client, userdata, flags, rc):
