@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""MQTT adapter for IP150 Alarms."""
+"""MQTT adapter for Paradox IP150."""
 
 import ip150
 import paho.mqtt.client as mqtt
@@ -33,7 +33,8 @@ class IP150_MQTT():
                 'Armed_stay':   'armed_home',
                 'Entry_delay':  'pending',
                 'Exit_delay':   'arming',
-                'Ready':        'disarmed'
+                'Ready':        'disarmed',
+                'Not_ready':    'disarmed',
             }
         },
         'zones_status': {
@@ -67,6 +68,7 @@ class IP150_MQTT():
                       1, True)
 
     def _on_paradox_new_state(self, state, client):
+        _LOGGER.debug(f'New state: {state}')
         for d1 in state.keys():
             d1_map = self._status_map.get(d1, None)
             if d1_map:
@@ -102,6 +104,7 @@ class IP150_MQTT():
         except ip150.Paradox_IP150_Error as e:
             if str(e) == 'Already getting updates.':
                 _LOGGER.info('Already getting updates.')
+                # TODO resend area status after mqtt reconnect
             else:
                 raise e
 

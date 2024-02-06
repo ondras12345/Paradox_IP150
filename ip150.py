@@ -102,25 +102,36 @@ class Paradox_IP150:
     def __init__(self, ip150url):
         """Initialize the IP150 module."""
         self.ip150url = ip150url
-        self.logged_in = False
+        self._logged_in = False
         self._keepalive = None
         self._updates = None
         self._stop_updates = threading.Event()
 
+    @property
+    def logged_in(self):
+        """See if we are logged in to the IP150 module.
+
+        This does not actually check anything with the IP150 module,
+        it just returns the value of an internal variable.
+        """
+        return self._logged_in
+
     def _logged_only(f):
         @functools.wraps(f)
         def wrapped(self, *args, **kwargs):
-            if not self.logged_in:
+            if not self._logged_in:
                 raise Paradox_IP150_Error(
                     'Not logged in; please use login() first.')
             else:
                 return f(self, *args, **kwargs)
         return wrapped
 
-    def _to_8bits(self, s):
+    @staticmethod
+    def _to_8bits(s):
         return "".join(map(lambda x: chr(ord(x) % 256), s))
 
-    def _paradox_rc4(self, data, key):
+    @staticmethod
+    def _paradox_rc4(data, key):
         """Return the result of Paradox's non-standard RC4."""
         S = list(range(256))
         j = 0
@@ -143,16 +154,17 @@ class Paradox_IP150:
         _LOGGER.debug(f'_paradox_rc4({repr(data)}, {repr(key)}): {repr(out)}')
         return "".join(map(lambda x: '{0:02X}'.format(x), out))
 
-    def _prep_cred(self, user, pwd, sess):
+    @staticmethod
+    def _prep_cred(user, pwd, sess):
         """Compute salted credentials in preparation for login.
 
         Returns params for requests.get().
         """
-        pwd_8bits = self._to_8bits(pwd)
+        pwd_8bits = Paradox_IP150._to_8bits(pwd)
         pwd_md5 = hashlib.md5(pwd_8bits.encode('ascii')).hexdigest().upper()
         spass = pwd_md5 + sess
         return {'p': hashlib.md5(spass.encode('ascii')).hexdigest().upper(),
-                'u': self._paradox_rc4(user, spass)}
+                'u': Paradox_IP150._paradox_rc4(user, spass)}
 
     def login(self, user, pwd, keep_alive_interval=5.0):
         """Log in to the IP150 module and start sending keepalives."""
@@ -187,7 +199,7 @@ class Paradox_IP150:
         if keep_alive_interval:
             self._keepalive = KeepAlive(self.ip150url, keep_alive_interval)
             self._keepalive.start()
-        self.logged_in = True
+        self._logged_in = True
         _LOGGER.info('login successful')
 
     @_logged_only
@@ -197,20 +209,21 @@ class Paradox_IP150:
         Stops sending keepalives and stops the _updates thread if it is
         running.
         """
-        if self._keepalive:
+        if self._keepalive is not None:
             self._keepalive.cancel()
             self._keepalive.join()
             self._keepalive = None
-        if self._updates:
+        if self._updates is not None:
             self._stop_updates.set()
             self._updates = None
         logout = requests.get(f'{self.ip150url}/logout.html', verify=False)
         if logout.status_code != 200:
             raise Paradox_IP150_Error('Error logging out')
-        self.logged_in = False
+        self._logged_in = False
         _LOGGER.info('logout successful')
 
-    def _js2array(self, varname, script):
+    @staticmethod
+    def _js2array(varname, script):
         _LOGGER.debug(f'_js2array({repr(varname)}, {repr(script)})')
         res = re.search(r'{} = new Array\((.*?)\);'.format(varname), script)
         res = f'[{res.group(1)}]'
@@ -279,6 +292,9 @@ class Paradox_IP150:
 
                 prev_state = cur_state
         except Exception as e:
+            # The thread will terminate, but cancel_updates will have to be
+            # called to clean up the mess before get_updates can be called
+            # again.
             if on_error:
                 on_error(e, userdata)
         finally:
@@ -294,7 +310,7 @@ class Paradox_IP150:
         if poll_interval <= 0.0:
             raise Paradox_IP150_Error(
                     'The polling interval must be greater than 0.0 seconds.')
-        if self._updates:
+        if self._updates is not None:
             raise Paradox_IP150_Error('Already getting updates.')
         self._updates = threading.Thread(target=self._get_updates,
                                          args=(on_update, on_error, userdata,
@@ -306,7 +322,7 @@ class Paradox_IP150:
     @_logged_only
     def cancel_updates(self):
         """Stop the _updates thread."""
-        if self._updates:
+        if self._updates is not None:
             self._stop_updates.set()
             self._updates = None
             _LOGGER.info('_updates thread stopped')
