@@ -218,10 +218,13 @@ class Paradox_IP150:
         return json.loads(res)
 
     @_logged_only
-    def get_info(self):
+    def get_info(self, timeout=0.9):
         """Get and parse status info from statuslive.html."""
-        status_page = requests.get(f'{self.ip150url}/statuslive.html',
-                                   verify=False)
+        try:
+            status_page = requests.get(f'{self.ip150url}/statuslive.html',
+                                       verify=False, timeout=timeout)
+        except requests.exceptions.Timeout:
+            raise Paradox_IP150_Error('Could not retrieve status information: timeout')
         status_parsed = BeautifulSoup(status_page.text, 'html.parser')
         if status_parsed.find('form', attrs={'name': 'statuslive'}) is None:
             raise Paradox_IP150_Error('Could not retrieve status information')
@@ -236,17 +239,29 @@ class Paradox_IP150:
             res[table] = [(i, self._tables_map[table]['map'][x]) for i, x in enumerate(tmp, start=1)]
         return res
 
-    def _get_updates(self, on_update, on_error, userdata, interval):
+    def _get_updates(self, on_update, on_error, userdata, interval, max_retry_count=5):
         """Periodically fetch updates from the IP150.
 
         This is the body of the _updates thread.
         """
         try:
             prev_state = {}
+            retry_count = 0
 
             while not self._stop_updates.wait(interval):
+                try:
+                    cur_state = self.get_info()
+                except Paradox_IP150_Error as e:
+                    retry_count += 1
+                    if retry_count > max_retry_count:
+                        raise Paradox_IP150_Error("Max retry count exceeded")
+                    else:
+                        _LOGGER.warning("get_info failed, retrying", exc_info=e)
+                        continue
+                else:
+                    retry_count = 0
+
                 updated_state = {}
-                cur_state = self.get_info()
                 for d1 in cur_state.keys():
                     if d1 in prev_state:
                         for cur_d2, prev_d2 in zip(cur_state[d1],
